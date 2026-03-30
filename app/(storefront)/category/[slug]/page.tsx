@@ -6,6 +6,7 @@ import Link from "next/link"
 import { createClient } from "@/lib/supabase/server"
 import { notFound } from "next/navigation"
 import { cn } from "@/lib/utils"
+import { proxyImageUrl } from "@/lib/image-proxy"
 
 export const revalidate = 60
 
@@ -121,7 +122,7 @@ export default async function CategoryPage({
                 {categoryBanner && (
                     <>
                         <div className="absolute inset-0 z-0">
-                            <img src={categoryBanner.image_url} alt={categoryBanner.title} className="w-full h-full object-cover" />
+                            <img src={proxyImageUrl(categoryBanner.image_url)} alt={categoryBanner.title} className="w-full h-full object-cover" />
                             <div className="absolute inset-0 bg-black/40" />
                         </div>
                     </>
