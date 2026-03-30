@@ -22,7 +22,12 @@ interface NavLink {
     children?: NavLink[]
 }
 
-export function Navbar() {
+interface NavbarProps {
+    initialSettings?: any
+    initialLinks?: NavLink[]
+}
+
+export function Navbar({ initialSettings, initialLinks }: NavbarProps = {}) {
     const [isMenuOpen, setIsMenuOpen] = React.useState(false);
     const [searchQuery, setSearchQuery] = React.useState("");
     const [searchResults, setSearchResults] = React.useState<any[]>([]);
@@ -32,9 +37,9 @@ export function Navbar() {
     const searchRef = React.useRef<HTMLDivElement>(null);
     const mobileSearchRef = React.useRef<HTMLDivElement>(null);
     const [isProfileOpen, setIsProfileOpen] = React.useState(false);
-    const [navLinks, setNavLinks] = React.useState<NavLink[]>([]);
+    const [navLinks, setNavLinks] = React.useState<NavLink[]>(initialLinks || []);
     const [activeDropdown, setActiveDropdown] = React.useState<string | null>(null);
-    const [siteSettings, setSiteSettings] = React.useState<any>(null);
+    const [siteSettings, setSiteSettings] = React.useState<any>(initialSettings || null);
     const { totalItems, isOpen: isCartOpen, openCart } = useCart();
     const { setItems } = useWishlist();
     const { addToast } = useToast();
@@ -45,6 +50,7 @@ export function Navbar() {
 
     React.useEffect(() => {
         const getSiteSettings = async () => {
+            if (initialSettings) return; // Skip if already provided
             try {
                 const res = await fetch("/api/settings");
                 const data = await res.json();
@@ -56,6 +62,7 @@ export function Navbar() {
         getSiteSettings();
 
         const getNavLinks = async () => {
+            if (initialLinks && initialLinks.length > 0) return; // Skip if already provided
             try {
                 const res = await fetch("/api/navigation", { cache: 'no-store' });
                 const data = await res.json();
@@ -95,7 +102,7 @@ export function Navbar() {
             }
         };
         getNavLinks();
-    }, []);
+    }, [initialSettings, initialLinks]);
 
     React.useEffect(() => {
         const getUserAndData = async () => {
