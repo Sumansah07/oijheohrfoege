@@ -48,6 +48,53 @@ export function Navbar({ initialSettings, initialLinks }: NavbarProps = {}) {
 
     const cartCount = totalItems();
 
+    // Build navigation tree from flat array
+    const buildNavTree = React.useCallback((data: NavLink[]) => {
+        if (!data || data.length === 0) return [];
+        
+        const tree: NavLink[] = [];
+        const map: Record<string, NavLink> = {};
+
+        data.forEach(item => {
+            map[item.id] = { ...item, children: [] };
+        });
+
+        data.forEach(item => {
+            if (item.parent_id && map[item.parent_id]) {
+                map[item.parent_id].children?.push(map[item.id]);
+            } else if (!item.parent_id) {
+                tree.push(map[item.id]);
+            }
+        });
+
+        // Sort by order_index and filter inactive children
+        const sortTree = (nodes: NavLink[]) => {
+            nodes.sort((a, b) => a.order_index - b.order_index);
+            nodes.forEach(node => {
+                if (node.children) {
+                    node.children = node.children.filter(c => c.is_active);
+                    sortTree(node.children);
+                }
+            });
+        };
+        sortTree(tree);
+
+        return tree.filter(n => n.is_active);
+    }, []);
+
+    React.useEffect(() => {
+        // Set initial settings
+        if (initialSettings) {
+            setSiteSettings(initialSettings);
+        }
+
+        // Build tree from initialLinks if provided
+        if (initialLinks && initialLinks.length > 0) {
+            const tree = buildNavTree(initialLinks);
+            setNavLinks(tree);
+        }
+    }, [initialSettings, initialLinks, buildNavTree]);
+
     React.useEffect(() => {
         const getSiteSettings = async () => {
             if (initialSettings) return; // Skip if already provided
@@ -67,42 +114,15 @@ export function Navbar({ initialSettings, initialLinks }: NavbarProps = {}) {
                 const res = await fetch("/api/navigation", { cache: 'no-store' });
                 const data = await res.json();
                 if (Array.isArray(data)) {
-                    // Construct tree
-                    const tree: NavLink[] = [];
-                    const map: Record<string, NavLink> = {};
-
-                    data.forEach(item => {
-                        map[item.id] = { ...item, children: [] };
-                    });
-
-                    data.forEach(item => {
-                        if (item.parent_id && map[item.parent_id]) {
-                            map[item.parent_id].children?.push(map[item.id]);
-                        } else if (!item.parent_id) {
-                            tree.push(map[item.id]);
-                        }
-                    });
-
-                    // Sort by order_index and filter inactive children
-                    const sortTree = (nodes: NavLink[]) => {
-                        nodes.sort((a, b) => a.order_index - b.order_index);
-                        nodes.forEach(node => {
-                            if (node.children) {
-                                node.children = node.children.filter(c => c.is_active);
-                                sortTree(node.children);
-                            }
-                        });
-                    };
-                    sortTree(tree);
-
-                    setNavLinks(tree.filter(n => n.is_active));
+                    const tree = buildNavTree(data);
+                    setNavLinks(tree);
                 }
             } catch (e) {
                 console.error("Failed to fetch nav links", e);
             }
         };
         getNavLinks();
-    }, [initialSettings, initialLinks]);
+    }, [initialSettings, initialLinks, buildNavTree]);
 
     React.useEffect(() => {
         const getUserAndData = async () => {
