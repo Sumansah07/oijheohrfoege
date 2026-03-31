@@ -8,7 +8,7 @@ const supabaseAdmin = createSupabaseClient(
     process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
 
-export async function placeCODOrder(items: any[], totalAmount: number, shipping: number, tax: number, shippingAddress: any) {
+export async function placeCODOrder(items: any[], totalAmount: number, shipping: number, tax: number, shippingAddress: any, shippingMethod?: any) {
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
@@ -41,7 +41,10 @@ export async function placeCODOrder(items: any[], totalAmount: number, shipping:
                 tax_amount: tax,
                 currency: "USD",
                 shipping_address: shippingAddress,
-                payment_provider_slug: "cod"
+                payment_provider_slug: "cod",
+                shipping_provider_slug: shippingMethod?.provider_slug || 'flat-rate',
+                shipping_method: shippingMethod?.service_name || 'Standard Shipping',
+                shipping_rate: shipping
             })
             .select()
             .single()

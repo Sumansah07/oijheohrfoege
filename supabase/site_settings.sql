@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS public.site_settings (
         {"icon": "Clock", "title": "24/7 Support", "desc": "Always here to help you"},
         {"icon": "Zap", "title": "Easy Returns", "desc": "14-day return policy"}
     ]',
+    shipping_config JSONB DEFAULT '{"zones": [], "free_shipping_threshold": 0, "default_rate": 10.00}',
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 

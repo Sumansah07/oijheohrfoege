@@ -5,7 +5,7 @@ import { NextResponse } from "next/server";
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-        const { items, shippingAddress } = body;
+        const { items, shippingAddress, shippingMethod } = body;
 
         if (!items || items.length === 0) {
             return NextResponse.json({ error: "Cart is empty" }, { status: 400 });
@@ -42,8 +42,9 @@ export async function POST(request: Request) {
             });
         }
 
-        // Add dummy shipping cost ($10)
-        totalAmount += 10;
+        // Add shipping cost
+        const shippingCost = shippingMethod?.rate || 10;
+        totalAmount += shippingCost;
 
         // Create Stripe Checkout Session
         // transition to Draft Order Pattern to avoid Stripe Metadata 500-character limit
@@ -60,11 +61,14 @@ export async function POST(request: Request) {
                 user_id: user?.id || null,
                 status: "pending",
                 total_amount: totalAmount,
-                shipping_amount: 10,
+                shipping_amount: shippingCost,
                 tax_amount: 0,
                 currency: "USD",
                 shipping_address: shippingAddress,
-                payment_provider_slug: "stripe"
+                payment_provider_slug: "stripe",
+                shipping_provider_slug: shippingMethod?.provider_slug || 'flat-rate',
+                shipping_method: shippingMethod?.service_name || 'Standard Shipping',
+                shipping_rate: shippingCost
             })
             .select()
             .single();

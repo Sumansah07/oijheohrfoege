@@ -157,6 +157,7 @@ export default function AdminSettingsPage() {
     const [categories, setCategories] = useState<any[]>([])
     const [products, setProducts] = useState<any[]>([])
     const [paymentProviders, setPaymentProviders] = useState<any[]>([])
+    const [shippingProviders, setShippingProviders] = useState<any[]>([])
 
     const [settings, setSettings] = useState<any>({
         logo_type: "text",
@@ -207,24 +208,32 @@ export default function AdminSettingsPage() {
                 font_size: 14,
                 font_family: "lufga"
             }
+        },
+        shipping_config: {
+            free_shipping_threshold: 0,
+            default_rate: 10.00,
+            weight_unit: "kg",
+            dimension_unit: "cm"
         }
     })
 
     useEffect(() => {
         const fetchData = async () => {
             try {
-                const [settingsRes, categoriesRes, productsRes, providersRes] = await Promise.all([
+                const [settingsRes, categoriesRes, productsRes, providersRes, shippingRes] = await Promise.all([
                     fetch("/api/settings"),
                     fetch("/api/categories"),
                     fetch("/api/products?limit=100"),
-                    fetch("/api/admin/payment-providers")
+                    fetch("/api/admin/payment-providers"),
+                    fetch("/api/admin/shipping-providers")
                 ])
 
-                const [settingsData, categoriesData, productsData, providersData] = await Promise.all([
+                const [settingsData, categoriesData, productsData, providersData, shippingData] = await Promise.all([
                     settingsRes.json(),
                     categoriesRes.json(),
                     productsRes.json(),
-                    providersRes.json()
+                    providersRes.json(),
+                    shippingRes.json()
                 ])
 
                 if (settingsData && !settingsData.error) {
@@ -257,6 +266,10 @@ export default function AdminSettingsPage() {
 
                 if (providersData && !providersData.error) {
                     setPaymentProviders(providersData || [])
+                }
+
+                if (shippingData && !shippingData.error) {
+                    setShippingProviders(shippingData || [])
                 }
             } catch (error) {
                 console.error("Failed to fetch data", error)
@@ -1021,7 +1034,290 @@ export default function AdminSettingsPage() {
                         </div>
                     )}
 
-                    {activeSection !== "Store Info" && activeSection !== "Navigation" && activeSection !== "Footer" && activeSection !== "Marquee" && activeSection !== "Payments" && (
+                    {activeSection === "Shipping" && (
+                        <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            {/* Shipping Providers */}
+                            <div className="bg-white border rounded-3xl p-10 shadow-sm space-y-8">
+                                <div className="flex items-center space-x-3">
+                                    <Truck className="h-6 w-6 text-primary" />
+                                    <h2 className="text-2xl font-bold font-lufga">Shipping Carriers</h2>
+                                </div>
+                                <p className="text-sm text-muted-foreground">Enable shipping carriers and configure delivery options for your customers.</p>
+
+                                <div className="space-y-4">
+                                    {shippingProviders.map((provider) => (
+                                        <div key={provider.id} className={cn(
+                                            "p-6 rounded-2xl border transition-all flex items-center justify-between bg-white hover:shadow-md",
+                                            provider.is_active ? "border-primary/20" : "border-muted grayscale-[0.5]"
+                                        )}>
+                                            <div className="flex items-center space-x-6">
+                                                <div className="h-12 w-32 flex items-center justify-center p-2 bg-muted/5 rounded-xl border border-muted-foreground/5">
+                                                    {provider.logo_url ? (
+                                                        <img 
+                                                            src={provider.logo_url} 
+                                                            alt={provider.name}
+                                                            className="w-full h-full object-contain"
+                                                            onError={(e) => {
+                                                                e.currentTarget.style.display = 'none';
+                                                                e.currentTarget.parentElement!.innerHTML = '<div class="flex items-center justify-center w-full h-full"><svg class="h-8 w-8 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path></svg></div>';
+                                                            }}
+                                                        />
+                                                    ) : (
+                                                        <Truck className="h-8 w-8 text-muted-foreground" />
+                                                    )}
+                                                </div>
+                                                <div className="hidden md:block">
+                                                    <h3 className="text-lg font-bold font-lufga">{provider.name}</h3>
+                                                    <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest">{provider.slug}</p>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center space-x-4">
+                                                <div className="flex items-center space-x-2">
+                                                    <span className={cn("text-[10px] font-black uppercase tracking-widest", provider.is_active ? "text-primary" : "text-muted-foreground")}>
+                                                        {provider.is_active ? 'ON' : 'OFF'}
+                                                    </span>
+                                                    <button
+                                                        onClick={async () => {
+                                                            const previousState = provider.is_active;
+                                                            const updated = { ...provider, is_active: !previousState };
+                                                            setShippingProviders(shippingProviders.map(p => p.id === provider.id ? updated : p));
+                                                            
+                                                            try {
+                                                                const res = await fetch("/api/admin/shipping-providers", {
+                                                                    method: "POST",
+                                                                    headers: { "Content-Type": "application/json" },
+                                                                    body: JSON.stringify(updated)
+                                                                });
+                                                                
+                                                                if (!res.ok) {
+                                                                    throw new Error("Failed to update");
+                                                                }
+                                                                
+                                                                addToast(`${provider.name} ${updated.is_active ? 'enabled' : 'disabled'}`, "success");
+                                                            } catch (err) {
+                                                                setShippingProviders(shippingProviders.map(p => p.id === provider.id ? { ...provider, is_active: previousState } : p));
+                                                                addToast("Failed to update status", "error");
+                                                            }
+                                                        }}
+                                                        className={cn(
+                                                            "h-8 w-14 rounded-full flex items-center transition-all px-1",
+                                                            provider.is_active ? "bg-primary justify-end" : "bg-muted justify-start"
+                                                        )}
+                                                    >
+                                                        <div className="h-6 w-6 rounded-full bg-white shadow-sm" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {shippingProviders.length === 0 && (
+                                        <div className="col-span-2 py-20 bg-muted/20 rounded-3xl border-2 border-dashed flex flex-col items-center justify-center text-center">
+                                            <Truck className="h-12 w-12 text-muted-foreground/30 mb-4" />
+                                            <p className="text-muted-foreground font-bold italic">No shipping providers configured in database.</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Shipping Configuration */}
+                            <div className="bg-white border rounded-3xl p-10 shadow-sm space-y-8">
+                                <div className="flex items-center space-x-3">
+                                    <Settings className="h-6 w-6 text-primary" />
+                                    <h2 className="text-2xl font-bold font-lufga">Shipping Rules</h2>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-bold text-muted-foreground uppercase tracking-wider ml-1">Free Shipping Threshold ($)</label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            value={settings.shipping_config?.free_shipping_threshold || 0}
+                                            onChange={(e) => setSettings({
+                                                ...settings,
+                                                shipping_config: { ...settings.shipping_config, free_shipping_threshold: parseFloat(e.target.value) || 0 }
+                                            })}
+                                            className="w-full h-14 rounded-xl border bg-muted/30 px-4 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                                            placeholder="0.00"
+                                        />
+                                        <p className="text-[10px] text-muted-foreground ml-1">Orders above this amount get free shipping (0 = disabled)</p>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-bold text-muted-foreground uppercase tracking-wider ml-1">Default Flat Rate ($)</label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            value={settings.shipping_config?.default_rate || 10}
+                                            onChange={(e) => setSettings({
+                                                ...settings,
+                                                shipping_config: { ...settings.shipping_config, default_rate: parseFloat(e.target.value) || 10 }
+                                            })}
+                                            className="w-full h-14 rounded-xl border bg-muted/30 px-4 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                                            placeholder="10.00"
+                                        />
+                                        <p className="text-[10px] text-muted-foreground ml-1">Fallback rate when carriers are unavailable</p>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-bold text-muted-foreground uppercase tracking-wider ml-1">Weight Unit</label>
+                                        <select
+                                            value={settings.shipping_config?.weight_unit || "kg"}
+                                            onChange={(e) => setSettings({
+                                                ...settings,
+                                                shipping_config: { ...settings.shipping_config, weight_unit: e.target.value }
+                                            })}
+                                            className="w-full h-14 rounded-xl border bg-muted/30 px-4 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                                        >
+                                            <option value="kg">Kilograms (kg)</option>
+                                            <option value="lb">Pounds (lb)</option>
+                                        </select>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-bold text-muted-foreground uppercase tracking-wider ml-1">Dimension Unit</label>
+                                        <select
+                                            value={settings.shipping_config?.dimension_unit || "cm"}
+                                            onChange={(e) => setSettings({
+                                                ...settings,
+                                                shipping_config: { ...settings.shipping_config, dimension_unit: e.target.value }
+                                            })}
+                                            className="w-full h-14 rounded-xl border bg-muted/30 px-4 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                                        >
+                                            <option value="cm">Centimeters (cm)</option>
+                                            <option value="in">Inches (in)</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeSection === "Shipping" && (
+                        <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                            <div className="bg-white border rounded-3xl p-10 shadow-sm space-y-8">
+                                <div className="flex items-center space-x-3">
+                                    <Truck className="h-6 w-6 text-primary" />
+                                    <h2 className="text-2xl font-bold font-lufga">Shipping Providers</h2>
+                                </div>
+                                <p className="text-sm text-muted-foreground">Configure shipping carriers and their API credentials for automated label generation and tracking.</p>
+
+                                <div className="space-y-4">
+                                    {[
+                                        { name: 'DHL Express', slug: 'dhl', logo: '/fonts/assets/dhl-logo.svg', description: 'Global express shipping' },
+                                        { name: 'FedEx', slug: 'fedex', logo: '/fonts/assets/fedex-logo.svg', description: 'Reliable worldwide delivery' },
+                                        { name: 'UPS', slug: 'ups', logo: '/fonts/assets/ups-logo.svg', description: 'United Parcel Service' },
+                                    ].map((provider) => (
+                                        <div key={provider.slug} className="p-6 rounded-2xl border transition-all bg-white hover:shadow-md">
+                                            <div className="flex items-start justify-between gap-6">
+                                                <div className="flex items-center space-x-6 flex-1">
+                                                    <div className="h-16 w-32 flex items-center justify-center p-3 bg-muted/5 rounded-xl border border-muted-foreground/5">
+                                                        <img 
+                                                            src={provider.logo}
+                                                            alt={provider.name}
+                                                            className="w-full h-full object-contain"
+                                                            onError={(e) => {
+                                                                (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="40"><text x="50%" y="50%" text-anchor="middle" dy=".3em" font-family="Arial" font-size="12" fill="%23666">' + provider.name + '</text></svg>';
+                                                            }}
+                                                        />
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <h3 className="text-lg font-bold font-lufga">{provider.name}</h3>
+                                                        <p className="text-xs text-muted-foreground mt-1">{provider.description}</p>
+                                                        <button 
+                                                            onClick={() => {
+                                                                const section = document.getElementById(`config-${provider.slug}`);
+                                                                if (section) {
+                                                                    section.classList.toggle('hidden');
+                                                                }
+                                                            }}
+                                                            className="text-xs text-primary font-bold mt-2 hover:underline"
+                                                        >
+                                                            Configure API Credentials →
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex items-center space-x-4">
+                                                    <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                                                        Coming Soon
+                                                    </span>
+                                                    <button
+                                                        disabled
+                                                        className="h-8 w-14 rounded-full flex items-center transition-all px-1 bg-muted justify-start opacity-50 cursor-not-allowed"
+                                                    >
+                                                        <div className="h-6 w-6 rounded-full bg-white shadow-sm" />
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            {/* Collapsible Configuration */}
+                                            <div id={`config-${provider.slug}`} className="hidden mt-6 pt-6 border-t space-y-4">
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                    <div className="space-y-2">
+                                                        <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">API Key / Client ID</label>
+                                                        <input
+                                                            type="password"
+                                                            placeholder="Enter API key..."
+                                                            className="w-full h-10 rounded-xl border bg-muted/20 px-4 text-sm font-mono focus:ring-2 focus:ring-primary/20 outline-none"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">API Secret / Account Number</label>
+                                                        <input
+                                                            type="password"
+                                                            placeholder="Enter secret..."
+                                                            className="w-full h-10 rounded-xl border bg-muted/20 px-4 text-sm font-mono focus:ring-2 focus:ring-primary/20 outline-none"
+                                                        />
+                                                    </div>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Shipper Address (Your Warehouse)</label>
+                                                    <textarea
+                                                        rows={3}
+                                                        placeholder="123 Warehouse St, City, State, ZIP, Country"
+                                                        className="w-full rounded-xl border bg-muted/20 px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                                                    />
+                                                </div>
+                                                <div className="flex items-center justify-between pt-2">
+                                                    <p className="text-xs text-muted-foreground">
+                                                        <ExternalLink className="h-3 w-3 inline mr-1" />
+                                                        Get API credentials from {provider.name} developer portal
+                                                    </p>
+                                                    <button className="h-9 px-6 rounded-xl bg-primary/10 text-primary text-xs font-bold hover:bg-primary/20 transition-all">
+                                                        Save Credentials
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <div className="bg-blue-50 border border-blue-200 rounded-2xl p-6 mt-8">
+                                    <div className="flex gap-4">
+                                        <div className="shrink-0">
+                                            <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
+                                                <FileText className="h-5 w-5 text-blue-600" />
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <h4 className="font-bold text-sm text-blue-900">How Shipping Integration Works</h4>
+                                            <ul className="text-xs text-blue-800 space-y-1 leading-relaxed">
+                                                <li>• Configure API credentials for your preferred shipping carriers</li>
+                                                <li>• When orders are placed, generate shipping labels automatically via API</li>
+                                                <li>• Print labels and attach to packages</li>
+                                                <li>• Schedule pickups or drop off at carrier locations</li>
+                                                <li>• Track shipments in real-time and update customers automatically</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeSection !== "Store Info" && activeSection !== "Navigation" && activeSection !== "Footer" && activeSection !== "Marquee" && activeSection !== "Payments" && activeSection !== "Shipping" && (
                         <div className="bg-white border border-dashed rounded-3xl p-20 flex flex-col items-center justify-center text-center space-y-4">
                             <div className="h-16 w-16 bg-muted/10 rounded-full flex items-center justify-center shadow-sm">
                                 <Settings className="h-8 w-8 text-primary" />

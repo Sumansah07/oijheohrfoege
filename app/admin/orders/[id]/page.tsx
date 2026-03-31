@@ -4,6 +4,7 @@ import { ArrowLeft, Package, Truck, Calendar, CreditCard, User, Mail, MapPin, Ch
 import Link from "next/link"
 import { notFound, redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
+import { ShippingLabelGenerator } from "@/components/admin/shipping-label-generator"
 
 export const revalidate = 0
 
@@ -211,9 +212,15 @@ export default async function AdminOrderDetailsPage({ params }: { params: { id: 
                         </h3>
                         <div className="space-y-4">
                             <div className="flex flex-col">
-                                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Carrier</span>
-                                <span className="text-sm font-bold italic tracking-tight underline decoration-primary decoration-double underline-offset-4">Domestic Standard Shipping</span>
+                                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Shipping Method</span>
+                                <span className="text-sm font-bold">{order.shipping_method || 'Standard Shipping'}</span>
                             </div>
+                            {order.tracking_number && (
+                                <div className="flex flex-col">
+                                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Tracking Number</span>
+                                    <span className="text-sm font-mono font-bold text-primary">{order.tracking_number}</span>
+                                </div>
+                            )}
                             <div className="flex flex-col">
                                 <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Address</span>
                                 <p className="text-sm font-medium leading-relaxed bg-muted/20 p-4 rounded-2xl border border-dashed border-muted-foreground/30">
@@ -222,6 +229,16 @@ export default async function AdminOrderDetailsPage({ params }: { params: { id: 
                                     {(order.shipping_address as any)?.postal_code}
                                 </p>
                             </div>
+                            {order.status !== 'cancelled' && order.status !== 'delivered' && (
+                                <ShippingLabelGenerator
+                                    orderId={order.id}
+                                    trackingNumber={order.tracking_number}
+                                    labelUrl={order.shipping_label_url}
+                                    pickupScheduled={order.pickup_scheduled}
+                                    pickupDate={order.pickup_date}
+                                    pickupTime={order.pickup_time}
+                                />
+                            )}
                         </div>
                     </div>
 

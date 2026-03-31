@@ -43,7 +43,8 @@ export async function POST(request: Request) {
         'social_links',
         'footer_config',
         'navigation_config',
-        'marquee_config'
+        'marquee_config',
+        'shipping_config'
     ];
 
     const filteredBody = Object.keys(body)

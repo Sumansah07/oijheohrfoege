@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { useCart } from "@/store/use-cart"
 import { useRouter } from "next/navigation"
-import { Loader2, ArrowLeft, ShieldCheck, CreditCard, Banknote } from "lucide-react"
+import { Loader2, ArrowLeft, ShieldCheck, CreditCard, Banknote, Truck } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
 import { loadStripe } from "@stripe/stripe-js"
@@ -11,6 +11,7 @@ import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-
 import { placeCODOrder } from "@/app/actions/checkout-actions"
 import { CheckoutAddress } from "@/components/storefront/checkout-address"
 import Script from "next/script"
+import { cn } from "@/lib/utils"
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || "")
 
@@ -26,11 +27,14 @@ export default function CheckoutPage() {
     const [activeProviders, setActiveProviders] = useState<any[]>([])
     const [placingCOD, setPlacingCOD] = useState(false)
     const [codError, setCodError] = useState("")
+    const [shippingRates, setShippingRates] = useState<any[]>([])
+    const [selectedShipping, setSelectedShipping] = useState<any>(null)
+    const [loadingRates, setLoadingRates] = useState(false)
 
     const MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ""
 
     // Calculate totals
-    const shipping = 10.00
+    const shipping = selectedShipping?.rate || 10.00
     const subtotal = totalPrice()
     const finalTotal = subtotal + shipping
 
@@ -62,9 +66,45 @@ export default function CheckoutPage() {
         setLoading(false)
     }, [items, router])
 
+    // Fetch shipping rates when address is selected
+    useEffect(() => {
+        if (selectedAddress && items.length > 0) {
+            fetchShippingRates();
+        }
+    }, [selectedAddress, items]);
+
+    const fetchShippingRates = async () => {
+        setLoadingRates(true);
+        try {
+            const res = await fetch("/api/shipping/calculate-rates", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    items,
+                    destination: selectedAddress,
+                    weight: items.reduce((sum: number, item: any) => sum + (item.quantity * 0.5), 0) // Mock weight
+                })
+            });
+            const data = await res.json();
+            if (data.rates && data.rates.length > 0) {
+                setShippingRates(data.rates);
+                setSelectedShipping(data.rates[0]); // Auto-select first option
+            }
+        } catch (err) {
+            console.error("Failed to fetch shipping rates", err);
+        } finally {
+            setLoadingRates(false);
+        }
+    };
+
     const handleCheckout = async () => {
         if (!selectedAddress) {
             setCodError("Please select a shipping address.")
+            return
+        }
+
+        if (!selectedShipping) {
+            setCodError("Please select a shipping method.")
             return
         }
 
@@ -78,7 +118,11 @@ export default function CheckoutPage() {
             const res = await fetch(endpoint, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ items, shippingAddress: selectedAddress })
+                body: JSON.stringify({ 
+                    items, 
+                    shippingAddress: selectedAddress,
+                    shippingMethod: selectedShipping
+                })
             });
             const data = await res.json()
             if (data.url) {
@@ -140,7 +184,7 @@ const handleRazorpayCheckout = async (data: any) => {
         }
         setPlacingCOD(true)
         setCodError("")
-        const res = await placeCODOrder(items, finalTotal, shipping, 0, selectedAddress)
+        const res = await placeCODOrder(items, finalTotal, shipping, 0, selectedAddress, selectedShipping)
 
         if (res.success) {
             router.push(`/order/success?payment_intent=cod_${res.orderId}`)
@@ -178,7 +222,60 @@ const handleRazorpayCheckout = async (data: any) => {
                         }}
                     />
 
-                    {/* Step 2: Payment Method */}
+                    {/* Step 2: Shipping Method */}
+                    <div className={`space-y-6 transition-all duration-500 ${!selectedAddress ? 'opacity-40 grayscale pointer-events-none' : 'opacity-100'}`}>
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-xl font-bold font-lufga flex items-center gap-2">
+                                <Truck className="h-5 w-5 text-primary" />
+                                Shipping Method
+                            </h3>
+                            {!selectedAddress && (
+                                <span className="text-[10px] bg-amber-100 text-amber-700 px-3 py-1 rounded-full font-bold uppercase tracking-widest">
+                                    Select address first
+                                </span>
+                            )}
+                        </div>
+
+                        {loadingRates ? (
+                            <div className="flex items-center justify-center py-12 bg-muted/20 rounded-2xl border-2 border-dashed">
+                                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                                <span className="ml-3 text-sm text-muted-foreground font-medium">Calculating shipping rates...</span>
+                            </div>
+                        ) : shippingRates.length > 0 ? (
+                            <div className="grid grid-cols-1 gap-3">
+                                {shippingRates.map((rate, idx) => (
+                                    <button
+                                        key={idx}
+                                        onClick={() => setSelectedShipping(rate)}
+                                        className={`p-5 border-2 rounded-2xl flex items-center justify-between transition-all hover:scale-[1.01] active:scale-[0.99] ${selectedShipping?.service_name === rate.service_name ? "border-primary bg-primary/5 shadow-lg shadow-primary/10" : "border-muted hover:border-primary/50 bg-white"}`}
+                                    >
+                                        <div className="flex items-center gap-4">
+                                            <div className={cn(
+                                                "h-10 w-10 rounded-xl flex items-center justify-center",
+                                                selectedShipping?.service_name === rate.service_name ? "bg-primary text-white" : "bg-muted"
+                                            )}>
+                                                <Truck className="h-5 w-5" />
+                                            </div>
+                                            <div className="text-left">
+                                                <p className="font-bold text-sm">{rate.service_name}</p>
+                                                <p className="text-[10px] text-muted-foreground font-medium">{rate.provider_name} • {rate.estimated_days} business days</p>
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="font-bold text-lg">{rate.rate === 0 ? 'FREE' : `$${rate.rate.toFixed(2)}`}</p>
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="py-12 bg-muted/20 rounded-2xl border-2 border-dashed flex flex-col items-center justify-center text-center">
+                                <Truck className="h-10 w-10 text-muted-foreground/30 mb-3" />
+                                <p className="text-sm text-muted-foreground font-medium">No shipping options available</p>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Step 3: Payment Method */}
                     <div className={`space-y-6 transition-all duration-500 ${!selectedAddress ? 'opacity-40 grayscale pointer-events-none' : 'opacity-100'}`}>
                         <div className="flex items-center justify-between">
                             <h3 className="text-xl font-bold font-lufga flex items-center gap-2">
@@ -334,7 +431,9 @@ const handleRazorpayCheckout = async (data: any) => {
                             </div>
                             <div className="flex justify-between">
                                 <span className="text-muted-foreground">Shipping</span>
-                                <span className="font-semibold">${shipping.toFixed(2)}</span>
+                                <span className="font-semibold">
+                                    {selectedShipping ? (selectedShipping.rate === 0 ? 'FREE' : `$${selectedShipping.rate.toFixed(2)}`) : '$10.00'}
+                                </span>
                             </div>
                             <div className="flex justify-between">
                                 <span className="text-muted-foreground">Taxes</span>

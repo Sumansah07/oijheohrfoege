@@ -4,14 +4,14 @@ import { paymentRegistry } from "@/lib/payments/registry";
 
 export async function POST(request: Request) {
     const supabase = createClient();
-    const { items, shippingAddress } = await request.json();
+    const { items, shippingAddress, shippingMethod } = await request.json();
 
     // 1. Get current user
     const { data: { user } } = await supabase.auth.getUser();
     
     // Calculate total amount
     const subtotal = items.reduce((acc: number, item: any) => acc + (item.price * item.quantity), 0);
-    const shipping = 10.00; // Match checkout page
+    const shipping = shippingMethod?.rate || 10.00;
     const totalAmount = subtotal + shipping;
 
     // Use Admin client to bypass RLS for order creation (system operation)
@@ -33,7 +33,10 @@ export async function POST(request: Request) {
                 shipping_address: shippingAddress,
                 payment_provider_slug: "razorpay",
                 payment_status: "pending",
-                currency: "USD" // Razorpay docs show USD/INR
+                currency: "USD",
+                shipping_provider_slug: shippingMethod?.provider_slug || 'flat-rate',
+                shipping_method: shippingMethod?.service_name || 'Standard Shipping',
+                shipping_rate: shipping
             }])
             .select()
             .single();

@@ -69,15 +69,27 @@ CREATE TABLE IF NOT EXISTS public.payment_providers (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 6. Delivery Providers (Extensibility Layer)
-CREATE TABLE IF NOT EXISTS public.delivery_providers (
+-- 6. Shipping Providers (Extensibility Layer)
+CREATE TABLE IF NOT EXISTS public.shipping_providers (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
-  slug TEXT UNIQUE NOT NULL, -- 'fedex', 'dhl', 'flat-rate'
+  slug TEXT UNIQUE NOT NULL, -- 'dhl', 'fedex', 'ups', 'flat-rate'
   is_active BOOLEAN DEFAULT false,
-  config JSONB DEFAULT '{}',
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+  provider_type TEXT DEFAULT 'carrier' CHECK (provider_type IN ('carrier', 'flat_rate', 'free')),
+  config JSONB DEFAULT '{}', -- API keys, account numbers, rate settings
+  logo_url TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+
+-- Seed initial shipping providers
+INSERT INTO public.shipping_providers (name, slug, is_active, provider_type, logo_url, config) VALUES
+  ('DHL Express', 'dhl', false, 'carrier', '/fonts/assets/dhl-logo.svg', '{"api_key": "", "account_number": "", "test_mode": true}'),
+  ('FedEx', 'fedex', false, 'carrier', '/fonts/assets/fedex-logo.svg', '{"api_key": "", "account_number": "", "test_mode": true}'),
+  ('UPS', 'ups', false, 'carrier', '/fonts/assets/ups-logo.svg', '{"api_key": "", "account_number": "", "test_mode": true}'),
+  ('Flat Rate Shipping', 'flat-rate', true, 'flat_rate', '/fonts/assets/shipping-box.svg', '{"rate": 10.00, "estimated_days": "3-5"}'),
+  ('Free Shipping', 'free-shipping', false, 'free', '/fonts/assets/free-shipping.svg', '{"minimum_order": 100.00}')
+ON CONFLICT (slug) DO NOTHING;
 
 -- 7. Orders
 CREATE TABLE IF NOT EXISTS public.orders (
@@ -92,7 +104,9 @@ CREATE TABLE IF NOT EXISTS public.orders (
   shipping_address JSONB NOT NULL,
   billing_address JSONB,
   payment_provider_slug TEXT REFERENCES public.payment_providers(slug),
-  delivery_provider_slug TEXT REFERENCES public.delivery_providers(slug),
+  shipping_provider_slug TEXT REFERENCES public.shipping_providers(slug),
+  shipping_method TEXT, -- e.g., 'DHL Express Worldwide', 'Standard Shipping'
+  shipping_rate DECIMAL(10,2),
   tracking_number TEXT,
   notes TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
