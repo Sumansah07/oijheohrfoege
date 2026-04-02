@@ -21,7 +21,6 @@ const sidebarItems = [
     { icon: Heart, label: "Wishlist", href: "/account/wishlist" },
     { icon: MapPin, label: "Addresses", href: "/account/addresses" },
     { icon: User, label: "Profile Info", href: "/account/profile" },
-    { icon: Bell, label: "Notifications", href: "/account/notifications" },
 ]
 
 interface AccountSidebarProps {

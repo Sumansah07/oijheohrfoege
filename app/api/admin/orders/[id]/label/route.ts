@@ -40,6 +40,16 @@ export async function GET(
         return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
 
+    // Get shipping provider config from database
+    const { data: shippingProvider } = await supabaseAdmin
+        .from("shipping_providers")
+        .select("config")
+        .eq("slug", order.shipping_provider_slug || 'dhl')
+        .single();
+
+    const shipperConfig = shippingProvider?.config?.shipper || {};
+    const shipperAddress = shipperConfig.address || {};
+
     // Generate simple HTML label (in production, this would be a proper PDF from DHL)
     const labelHTML = `
 <!DOCTYPE html>
@@ -176,11 +186,12 @@ export async function GET(
         <div class="section">
             <div class="section-title">From (Shipper)</div>
             <div class="info">
-                <strong>${process.env.WAREHOUSE_NAME || 'Your Store'}</strong><br>
-                ${process.env.WAREHOUSE_ADDRESS || '123 Warehouse St'}<br>
-                ${process.env.WAREHOUSE_CITY || 'New York'}, ${process.env.WAREHOUSE_STATE || 'NY'} ${process.env.WAREHOUSE_ZIP || '10001'}<br>
-                ${process.env.WAREHOUSE_COUNTRY || 'US'}<br>
-                Phone: ${process.env.WAREHOUSE_PHONE || '+1-555-0000'}
+                <strong>${shipperConfig.company_name || 'Your Store'}</strong><br>
+                ${shipperConfig.contact_name ? `${shipperConfig.contact_name}<br>` : ''}
+                ${shipperAddress.street || '123 Warehouse St'}<br>
+                ${shipperAddress.city || 'City'}${shipperAddress.state ? `, ${shipperAddress.state}` : ''} ${shipperAddress.postal_code || '10001'}<br>
+                Phone: ${shipperConfig.phone || '+1-555-0000'}
+                ${shipperConfig.email ? `<br>Email: ${shipperConfig.email}` : ''}
             </div>
         </div>
 
@@ -188,10 +199,13 @@ export async function GET(
             <div class="section-title">To (Recipient)</div>
             <div class="info">
                 <strong>${(order.shipping_address as any)?.name || 'Customer'}</strong><br>
-                ${(order.shipping_address as any)?.line1 || 'Address'}<br>
-                ${(order.shipping_address as any)?.city || 'City'}, ${(order.shipping_address as any)?.state || 'State'} ${(order.shipping_address as any)?.postal_code || 'ZIP'}<br>
-                ${(order.shipping_address as any)?.country || 'Country'}<br>
-                ${(order.shipping_address as any)?.email ? `Email: ${(order.shipping_address as any).email}` : ''}
+                ${(order.shipping_address as any)?.phone ? `${(order.shipping_address as any).phone}<br>` : ''}
+                ${(order.shipping_address as any)?.full_address ? 
+                    `${(order.shipping_address as any).full_address}<br>` : 
+                    `${(order.shipping_address as any)?.house_number ? (order.shipping_address as any).house_number + ', ' : ''}${(order.shipping_address as any)?.street || 'Address'}<br>`
+                }
+                ${(order.shipping_address as any)?.city || ''}${(order.shipping_address as any)?.state ? `, ${(order.shipping_address as any).state}` : ''}${(order.shipping_address as any)?.pincode || (order.shipping_address as any)?.postal_code ? ` ${(order.shipping_address as any)?.pincode || (order.shipping_address as any)?.postal_code}` : ''}
+                ${(order.shipping_address as any)?.email ? `<br>Email: ${(order.shipping_address as any).email}` : ''}
             </div>
         </div>
 

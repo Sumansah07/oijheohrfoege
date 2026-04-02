@@ -163,31 +163,38 @@ export default function OrderDetailsPage({ params }: { params: { id: string } })
                     <div className="bg-card border rounded-[2.5rem] overflow-hidden shadow-sm">
                         <div className="p-8 border-b bg-muted/10 flex justify-between items-center">
                             <h3 className="text-xl font-bold font-lufga">Order Items</h3>
-                            <span className="text-sm font-bold text-muted-foreground">{order.order_items.length} Items</span>
+                            <span className="text-sm font-bold text-muted-foreground">{order.order_items?.length || 0} Items</span>
                         </div>
                         <div className="p-8 space-y-8">
-                            {order.order_items.map((item: any, idx: number) => (
-                                <div key={idx} className="flex items-center space-x-6 pb-8 border-b last:border-0 last:pb-0 group">
-                                    <div className="relative h-28 w-24 bg-muted rounded-[1.5rem] overflow-hidden shrink-0 border group-hover:shadow-lg transition-all duration-500">
-                                        {item.products?.featured_image ? (
-                                            <img src={item.products.featured_image} className="object-cover w-full h-full group-hover:scale-110 transition-transform duration-700" alt={item.products?.name} />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center text-muted-foreground"><Package className="h-10 w-10" /></div>
-                                        )}
-                                    </div>
-                                    <div className="flex-1 space-y-2">
-                                        <h4 className="font-bold text-xl leading-tight group-hover:text-primary transition-colors">{item.products?.name}</h4>
-                                        <p className="text-sm text-muted-foreground line-clamp-1">{item.products?.description}</p>
-                                        <div className="flex items-center space-x-6 pt-2">
-                                            <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground bg-muted/30 px-3 py-1 rounded-lg">Qty: {item.quantity}</div>
-                                            <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Price: ${Number(item.unit_price).toFixed(2)}</div>
+                            {order.order_items && order.order_items.length > 0 ? (
+                                order.order_items.map((item: any, idx: number) => (
+                                    <div key={idx} className="flex items-center space-x-6 pb-8 border-b last:border-0 last:pb-0 group">
+                                        <div className="relative h-28 w-24 bg-muted rounded-[1.5rem] overflow-hidden shrink-0 border group-hover:shadow-lg transition-all duration-500">
+                                            {item.products?.featured_image ? (
+                                                <img src={item.products.featured_image} className="object-cover w-full h-full group-hover:scale-110 transition-transform duration-700" alt={item.products?.name} />
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center text-muted-foreground"><Package className="h-10 w-10" /></div>
+                                            )}
+                                        </div>
+                                        <div className="flex-1 space-y-2">
+                                            <h4 className="font-bold text-xl leading-tight group-hover:text-primary transition-colors">{item.products?.name || 'Product'}</h4>
+                                            <p className="text-sm text-muted-foreground line-clamp-1">{item.products?.description || ''}</p>
+                                            <div className="flex items-center space-x-6 pt-2">
+                                                <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground bg-muted/30 px-3 py-1 rounded-lg">Qty: {item.quantity}</div>
+                                                <div className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Price: ${Number(item.unit_price).toFixed(2)}</div>
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="font-bold text-xl text-foreground font-lufga">${Number(item.total_price).toFixed(2)}</p>
                                         </div>
                                     </div>
-                                    <div className="text-right">
-                                        <p className="font-bold text-xl text-foreground font-lufga">${Number(item.total_price).toFixed(2)}</p>
-                                    </div>
+                                ))
+                            ) : (
+                                <div className="text-center py-12 text-muted-foreground">
+                                    <Package className="h-12 w-12 mx-auto mb-4 opacity-30" />
+                                    <p className="font-medium">No items found in this order</p>
                                 </div>
-                            ))}
+                            )}
                         </div>
                         <div className="p-8 bg-muted/5 space-y-4">
                             <div className="flex justify-between text-base font-medium">

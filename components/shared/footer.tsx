@@ -15,13 +15,15 @@ export function Footer({ initialSettings }: FooterProps) {
     return (
         <footer className="w-full border-t bg-muted/30">
             <div className="container mx-auto px-4 py-12 md:py-16">
-                <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
-                    <div className="space-y-4">
+                {/* Two balanced columns */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-12 max-w-4xl mx-auto">
+                    {/* Store Info */}
+                    <div className="space-y-4 text-center">
                         <h3 className="text-lg font-bold font-lufga uppercase tracking-wider">{storeName}</h3>
                         <p className="text-sm text-muted-foreground">
                             {siteSettings?.store_description || "Your one-stop destination for premium fashion and lifestyle products. Quality meets style."}
                         </p>
-                        <div className="flex space-x-4">
+                        <div className="flex space-x-4 justify-center">
                             <Link href={siteSettings?.social_links?.twitter || "#"} className="text-muted-foreground hover:text-primary transition-colors"><Twitter className="h-5 w-5" /></Link>
                             <Link href={siteSettings?.social_links?.facebook || "#"} className="text-muted-foreground hover:text-primary transition-colors"><Facebook className="h-5 w-5" /></Link>
                             <Link href={siteSettings?.social_links?.instagram || "#"} className="text-muted-foreground hover:text-primary transition-colors"><Instagram className="h-5 w-5" /></Link>
@@ -29,44 +31,29 @@ export function Footer({ initialSettings }: FooterProps) {
                         </div>
                     </div>
 
-                    {siteSettings?.footer_config?.columns?.length > 0 ? (
-                        siteSettings.footer_config.columns.slice(0, 2).map((col: any, idx: number) => (
-                            <div key={idx}>
-                                <h4 className="mb-4 text-sm font-bold uppercase tracking-widest">{col.title}</h4>
-                                <ul className="space-y-2 text-sm">
-                                    {col.links.map((link: any, lIdx: number) => (
-                                        <li key={lIdx}>
-                                            <Link href={link.url} className="text-muted-foreground hover:text-primary transition-colors">
-                                                {link.label}
-                                            </Link>
-                                        </li>
-                                    ))}
-                                </ul>
-                            </div>
-                        ))
-                    ) : (
-                        <>
-                            <div>
-                                <h4 className="mb-4 text-sm font-bold uppercase tracking-widest">Shop</h4>
-                                <ul className="space-y-2 text-sm">
-                                    <li><Link href="/category/men" className="text-muted-foreground hover:text-primary transition-colors">Men's Collection</Link></li>
-                                    <li><Link href="/category/women" className="text-muted-foreground hover:text-primary transition-colors">Women's Collection</Link></li>
-                                    <li><Link href="/category/accessories" className="text-muted-foreground hover:text-primary transition-colors">Accessories</Link></li>
-                                    <li><Link href="/new-arrivals" className="text-muted-foreground hover:text-primary transition-colors">New Arrivals</Link></li>
-                                </ul>
-                            </div>
-
-                            <div>
-                                <h4 className="mb-4 text-sm font-bold uppercase tracking-widest">Support</h4>
-                                <ul className="space-y-2 text-sm">
-                                    <li><Link href="/faq" className="text-muted-foreground hover:text-primary transition-colors">FAQs</Link></li>
+                    {/* Company Information Column */}
+                    <div className="text-center">
+                        <h4 className="mb-4 text-sm font-bold uppercase tracking-widest">
+                            {siteSettings?.footer_config?.columns?.[0]?.title || "Company Information"}
+                        </h4>
+                        <ul className="space-y-2 text-sm">
+                            {siteSettings?.footer_config?.columns?.[0]?.links?.length > 0 ? (
+                                siteSettings.footer_config.columns[0].links.map((link: any, lIdx: number) => (
+                                    <li key={lIdx}>
+                                        <Link href={link.url} className="text-muted-foreground hover:text-primary transition-colors">
+                                            {link.label}
+                                        </Link>
+                                    </li>
+                                ))
+                            ) : (
+                                <>
                                     <li><Link href="/contact" className="text-muted-foreground hover:text-primary transition-colors">Contact Us</Link></li>
-                                    <li><Link href="/shipping" className="text-muted-foreground hover:text-primary transition-colors">Shipping Policy</Link></li>
-                                    <li><Link href="/returns" className="text-muted-foreground hover:text-primary transition-colors">Returns & Exchanges</Link></li>
-                                </ul>
-                            </div>
-                        </>
-                    )}
+                                    <li><Link href="/about" className="text-muted-foreground hover:text-primary transition-colors">About Us</Link></li>
+                                    <li><Link href="/faq" className="text-muted-foreground hover:text-primary transition-colors">FAQs</Link></li>
+                                </>
+                            )}
+                        </ul>
+                    </div>
                 </div>
 
                 <div className="mt-12 border-t pt-8 text-center text-xs text-muted-foreground">

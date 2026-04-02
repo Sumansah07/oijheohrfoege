@@ -60,9 +60,9 @@ export function AdminSidebar() {
             {/* Header */}
             <div className="flex h-16 items-center px-6 border-b">
                 {!isCollapsed && (
-                    <span className="text-lg font-bold tracking-tight font-lufga">
+                    <Link href="/admin/dashboard" className="text-lg font-bold tracking-tight font-lufga hover:opacity-80 transition-opacity">
                         MODERN<span className="text-primary truncate">ADMIN</span>
-                    </span>
+                    </Link>
                 )}
                 <button
                     onClick={() => setIsCollapsed(!isCollapsed)}

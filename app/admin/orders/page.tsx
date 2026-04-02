@@ -41,6 +41,15 @@ export default async function AdminOrdersPage() {
         console.log("ADMIN ORDERS FETCHED:", rawOrders?.length || 0, "orders found")
     }
 
+    // Calculate real status counts
+    const statusCounts = {
+        pending: rawOrders?.filter(o => o.status === 'pending').length || 0,
+        processing: rawOrders?.filter(o => o.status === 'processing').length || 0,
+        shipped: rawOrders?.filter(o => o.status === 'shipped').length || 0,
+        delivered: rawOrders?.filter(o => o.status === 'delivered').length || 0,
+        cancelled: rawOrders?.filter(o => o.status === 'cancelled').length || 0,
+    }
+
     const orders = (rawOrders || []).map(o => ({
         id: o.id.split("-")[0].toUpperCase(), // Short visual ID
         fullId: o.id,
@@ -68,19 +77,15 @@ export default async function AdminOrdersPage() {
                     <h1 className="text-4xl font-bold font-lufga tracking-tight">Orders</h1>
                     <p className="text-muted-foreground mt-1">Track and manage customer purchases and fulfillment.</p>
                 </div>
-                <button className="h-12 px-6 rounded-xl border flex items-center space-x-2 bg-card hover:bg-muted transition-all font-bold text-sm">
-                    <Download className="h-4 w-4" />
-                    <span>Export Orders</span>
-                </button>
             </div>
 
             {/* Order Stats */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                 {[
-                    { label: "New Orders", count: "14", color: "text-blue-600", bg: "bg-blue-50" },
-                    { label: "In Fulfillment", count: "8", color: "text-orange-600", bg: "bg-orange-50" },
-                    { label: "Completed", count: "421", color: "text-green-600", bg: "bg-green-50" },
-                    { label: "Cancelled", count: "3", color: "text-red-600", bg: "bg-red-50" },
+                    { label: "New Orders", count: statusCounts.pending + statusCounts.processing, color: "text-blue-600", bg: "bg-blue-50" },
+                    { label: "In Fulfillment", count: statusCounts.shipped, color: "text-orange-600", bg: "bg-orange-50" },
+                    { label: "Completed", count: statusCounts.delivered, color: "text-green-600", bg: "bg-green-50" },
+                    { label: "Cancelled", count: statusCounts.cancelled, color: "text-red-600", bg: "bg-red-50" },
                 ].map((stat) => (
                     <div key={stat.label} className="bg-card border rounded-3xl p-6 shadow-sm flex items-center justify-between">
                         <div>
@@ -160,12 +165,10 @@ export default async function AdminOrdersPage() {
                                         </div>
                                     </td>
                                     <td className="px-6 py-5 text-right">
-                                        <div className="flex items-center justify-end space-x-2">
-                                            <Link href={`/admin/orders/${order.fullId}`} className="p-2 rounded-xl hover:bg-muted text-muted-foreground">
-                                                <Eye className="h-4 w-4" />
-                                            </Link>
-                                            <button className="p-2 rounded-xl hover:bg-muted text-muted-foreground"><MoreHorizontal className="h-4 w-4" /></button>
-                                        </div>
+                                        <Link href={`/admin/orders/${order.fullId}`} className="inline-flex items-center gap-2 px-4 py-2 rounded-xl hover:bg-muted text-muted-foreground hover:text-primary transition-all font-bold text-sm">
+                                            <Eye className="h-4 w-4" />
+                                            <span>View</span>
+                                        </Link>
                                     </td>
                                 </tr>
                             ))}

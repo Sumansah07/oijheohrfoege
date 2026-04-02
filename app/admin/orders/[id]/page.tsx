@@ -15,12 +15,26 @@ async function updateOrderStatus(orderId: string, status: string) {
         process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
     const { error } = await supabaseAdmin
         .from("orders")
         .update({ status })
         .eq("id", orderId)
 
     if (error) throw error
+
+    // Log the activity
+    await supabaseAdmin
+        .from("order_activity")
+        .insert({
+            order_id: orderId,
+            status: status,
+            note: `Order status changed to ${status}`,
+            created_by: user?.id || null
+        })
+
     revalidatePath(`/admin/orders/${orderId}`)
     revalidatePath("/admin/orders")
 }
@@ -44,12 +58,19 @@ export default async function AdminOrderDetailsPage({ params }: { params: { id: 
         .from("orders")
         .select(`
             *,
-            profiles (full_name),
+            profiles (full_name, email),
             order_items (
                 quantity,
                 unit_price,
                 total_price,
                 products ( name, featured_image, sku )
+            ),
+            order_activity (
+                id,
+                status,
+                note,
+                created_at,
+                created_by
             )
         `)
         .eq("id", params.id)
@@ -170,14 +191,37 @@ export default async function AdminOrderDetailsPage({ params }: { params: { id: 
                             Activity Log
                         </h3>
                         <div className="space-y-6">
-                            <div className="flex gap-4">
-                                <div className="mt-1 h-3 w-3 rounded-full bg-green-500 shrink-0 ring-4 ring-green-100" />
-                                <div className="space-y-1">
-                                    <p className="text-sm font-bold">Order Confirmed</p>
-                                    <p className="text-xs text-muted-foreground">{new Date(order.created_at).toLocaleString()}</p>
-                                    <p className="text-sm text-muted-foreground mt-2 bg-muted/30 p-3 rounded-xl border border-dashed text-[10px] uppercase font-bold tracking-widest">Logged: system - automated</p>
+                            {order.order_activity && order.order_activity.length > 0 ? (
+                                order.order_activity
+                                    .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                                    .map((activity: any, idx: number) => (
+                                        <div key={activity.id} className="flex gap-4">
+                                            <div className={`mt-1 h-3 w-3 rounded-full shrink-0 ring-4 ${
+                                                activity.status === 'delivered' ? 'bg-green-500 ring-green-100' :
+                                                activity.status === 'shipped' ? 'bg-purple-500 ring-purple-100' :
+                                                activity.status === 'processing' ? 'bg-blue-500 ring-blue-100' :
+                                                activity.status === 'cancelled' ? 'bg-red-500 ring-red-100' :
+                                                'bg-orange-500 ring-orange-100'
+                                            }`} />
+                                            <div className="space-y-1">
+                                                <p className="text-sm font-bold capitalize">{activity.note || `Status: ${activity.status}`}</p>
+                                                <p className="text-xs text-muted-foreground">{new Date(activity.created_at).toLocaleString()}</p>
+                                                <p className="text-sm text-muted-foreground mt-2 bg-muted/30 p-3 rounded-xl border border-dashed text-[10px] uppercase font-bold tracking-widest">
+                                                    Logged: {activity.created_by ? 'admin' : 'system - automated'}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    ))
+                            ) : (
+                                <div className="flex gap-4">
+                                    <div className="mt-1 h-3 w-3 rounded-full bg-green-500 shrink-0 ring-4 ring-green-100" />
+                                    <div className="space-y-1">
+                                        <p className="text-sm font-bold">Order Confirmed</p>
+                                        <p className="text-xs text-muted-foreground">{new Date(order.created_at).toLocaleString()}</p>
+                                        <p className="text-sm text-muted-foreground mt-2 bg-muted/30 p-3 rounded-xl border border-dashed text-[10px] uppercase font-bold tracking-widest">Logged: system - automated</p>
+                                    </div>
                                 </div>
-                            </div>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -196,7 +240,7 @@ export default async function AdminOrderDetailsPage({ params }: { params: { id: 
                             </div>
                             <div className="flex flex-col">
                                 <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Email Address</span>
-                                <span className="text-sm font-medium text-primary underline">{(order.shipping_address as any)?.email || order.profiles?.email || "N/A"}</span>
+                                <span className="text-sm font-medium text-primary underline">{order.profiles?.email || (order.shipping_address as any)?.email || "N/A"}</span>
                             </div>
                             <div className="flex flex-col">
                                 <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Customer Type</span>
@@ -224,9 +268,27 @@ export default async function AdminOrderDetailsPage({ params }: { params: { id: 
                             <div className="flex flex-col">
                                 <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Address</span>
                                 <p className="text-sm font-medium leading-relaxed bg-muted/20 p-4 rounded-2xl border border-dashed border-muted-foreground/30">
-                                    {(order.shipping_address as any)?.line1 || "No address details"}<br />
-                                    {(order.shipping_address as any)?.city && `${(order.shipping_address as any).city}, `}
-                                    {(order.shipping_address as any)?.postal_code}
+                                    {(order.shipping_address as any)?.name && (
+                                        <><strong>{(order.shipping_address as any).name}</strong><br /></>
+                                    )}
+                                    {(order.shipping_address as any)?.phone && (
+                                        <>{(order.shipping_address as any).phone}<br /></>
+                                    )}
+                                    {(order.shipping_address as any)?.full_address ? (
+                                        <>{(order.shipping_address as any).full_address}</>
+                                    ) : (
+                                        <>
+                                            {(order.shipping_address as any)?.house_number && `${(order.shipping_address as any).house_number}, `}
+                                            {(order.shipping_address as any)?.street && `${(order.shipping_address as any).street}, `}
+                                            {(order.shipping_address as any)?.city && `${(order.shipping_address as any).city}, `}
+                                            {(order.shipping_address as any)?.state && `${(order.shipping_address as any).state} `}
+                                            {(order.shipping_address as any)?.pincode}
+                                        </>
+                                    )}
+                                    {!(order.shipping_address as any)?.full_address && 
+                                     !(order.shipping_address as any)?.street && 
+                                     !(order.shipping_address as any)?.city && 
+                                     "No address details"}
                                 </p>
                             </div>
                             {order.status !== 'cancelled' && order.status !== 'delivered' && (

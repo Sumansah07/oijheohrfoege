@@ -158,6 +158,8 @@ export default function AdminSettingsPage() {
     const [products, setProducts] = useState<any[]>([])
     const [paymentProviders, setPaymentProviders] = useState<any[]>([])
     const [shippingProviders, setShippingProviders] = useState<any[]>([])
+    const [expandedProvider, setExpandedProvider] = useState<string | null>(null)
+    const [savingProvider, setSavingProvider] = useState<string | null>(null)
 
     const [settings, setSettings] = useState<any>({
         logo_type: "text",
@@ -323,6 +325,46 @@ export default function AdminSettingsPage() {
         }
     }
 
+    const handleSaveShippingProvider = async (providerId: string) => {
+        setSavingProvider(providerId)
+        try {
+            const provider = shippingProviders.find(p => p.id === providerId)
+            if (!provider) return
+
+            const res = await fetch("/api/admin/shipping-providers", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(provider)
+            })
+
+            if (!res.ok) throw new Error("Failed to save")
+
+            addToast(`${provider.name} configuration saved`, "success")
+        } catch (err) {
+            addToast("Failed to save configuration", "error")
+        } finally {
+            setSavingProvider(null)
+        }
+    }
+
+    const updateProviderConfig = (providerId: string, path: string, value: any) => {
+        setShippingProviders(shippingProviders.map(p => {
+            if (p.id !== providerId) return p
+            
+            const config = { ...p.config }
+            const keys = path.split('.')
+            let current: any = config
+            
+            for (let i = 0; i < keys.length - 1; i++) {
+                if (!current[keys[i]]) current[keys[i]] = {}
+                current = current[keys[i]]
+            }
+            
+            current[keys[keys.length - 1]] = value
+            return { ...p, config }
+        }))
+    }
+
     const sections = [
         { icon: Store, label: "Store Info" },
         { icon: Menu, label: "Navigation" },
@@ -330,9 +372,6 @@ export default function AdminSettingsPage() {
         { icon: Zap, label: "Marquee" },
         { icon: CreditCard, label: "Payments" },
         { icon: Truck, label: "Shipping" },
-        { icon: Bell, label: "Notifications" },
-        { icon: Shield, label: "Security" },
-        { icon: Globe, label: "Regional" },
     ]
 
     if (loading) {
@@ -1044,79 +1083,450 @@ export default function AdminSettingsPage() {
                                 </div>
                                 <p className="text-sm text-muted-foreground">Enable shipping carriers and configure delivery options for your customers.</p>
 
-                                <div className="space-y-4">
-                                    {shippingProviders.map((provider) => (
-                                        <div key={provider.id} className={cn(
-                                            "p-6 rounded-2xl border transition-all flex items-center justify-between bg-white hover:shadow-md",
-                                            provider.is_active ? "border-primary/20" : "border-muted grayscale-[0.5]"
-                                        )}>
-                                            <div className="flex items-center space-x-6">
-                                                <div className="h-12 w-32 flex items-center justify-center p-2 bg-muted/5 rounded-xl border border-muted-foreground/5">
-                                                    {provider.logo_url ? (
-                                                        <img 
-                                                            src={provider.logo_url} 
-                                                            alt={provider.name}
-                                                            className="w-full h-full object-contain"
-                                                            onError={(e) => {
-                                                                e.currentTarget.style.display = 'none';
-                                                                e.currentTarget.parentElement!.innerHTML = '<div class="flex items-center justify-center w-full h-full"><svg class="h-8 w-8 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"></path></svg></div>';
-                                                            }}
-                                                        />
-                                                    ) : (
-                                                        <Truck className="h-8 w-8 text-muted-foreground" />
-                                                    )}
-                                                </div>
-                                                <div className="hidden md:block">
-                                                    <h3 className="text-lg font-bold font-lufga">{provider.name}</h3>
-                                                    <p className="text-[10px] text-muted-foreground font-black uppercase tracking-widest">{provider.slug}</p>
-                                                </div>
-                                            </div>
+                                <div className="space-y-6">
+                                    {shippingProviders.filter(p => p.provider_type === 'carrier').map((provider) => {
+                                        const config = provider.config || {};
+                                        const shipper = config.shipper || {};
+                                        const address = shipper.address || {};
+                                        const defaults = config.defaults || {};
+                                        const isExpanded = expandedProvider === provider.id;
+                                        
+                                        return (
+                                            <div key={provider.id} className="border-2 rounded-3xl overflow-hidden transition-all bg-white">
+                                                {/* Provider Header */}
+                                                <div className={cn(
+                                                    "p-6 flex items-center justify-between",
+                                                    provider.is_active ? "bg-primary/5" : "bg-muted/20"
+                                                )}>
+                                                    <div className="flex items-center space-x-6 flex-1">
+                                                        <div className="h-16 w-32 flex items-center justify-center p-3 bg-white rounded-xl border shadow-sm">
+                                                            {provider.logo_url ? (
+                                                                <img src={provider.logo_url} alt={provider.name} className="w-full h-full object-contain" />
+                                                            ) : (
+                                                                <Truck className="h-8 w-8 text-muted-foreground" />
+                                                            )}
+                                                        </div>
+                                                        <div className="flex-1">
+                                                            <h3 className="text-lg font-bold font-lufga">{provider.name}</h3>
+                                                            <p className="text-xs text-muted-foreground mt-1">{provider.slug}</p>
+                                                            <button 
+                                                                onClick={() => setExpandedProvider(isExpanded ? null : provider.id)}
+                                                                className="text-xs text-primary font-bold mt-2 hover:underline flex items-center gap-1"
+                                                            >
+                                                                {isExpanded ? '▼' : '▶'} Configure API Credentials
+                                                            </button>
+                                                        </div>
+                                                    </div>
 
-                                            <div className="flex items-center space-x-4">
-                                                <div className="flex items-center space-x-2">
-                                                    <span className={cn("text-[10px] font-black uppercase tracking-widest", provider.is_active ? "text-primary" : "text-muted-foreground")}>
-                                                        {provider.is_active ? 'ON' : 'OFF'}
-                                                    </span>
-                                                    <button
-                                                        onClick={async () => {
-                                                            const previousState = provider.is_active;
-                                                            const updated = { ...provider, is_active: !previousState };
-                                                            setShippingProviders(shippingProviders.map(p => p.id === provider.id ? updated : p));
-                                                            
-                                                            try {
-                                                                const res = await fetch("/api/admin/shipping-providers", {
-                                                                    method: "POST",
-                                                                    headers: { "Content-Type": "application/json" },
-                                                                    body: JSON.stringify(updated)
-                                                                });
+                                                    <div className="flex items-center space-x-4">
+                                                        <span className={cn("text-[10px] font-black uppercase tracking-widest", provider.is_active ? "text-primary" : "text-muted-foreground")}>
+                                                            {provider.is_active ? 'ON' : 'OFF'}
+                                                        </span>
+                                                        <button
+                                                            onClick={async () => {
+                                                                const previousState = provider.is_active;
+                                                                const updated = { ...provider, is_active: !previousState };
+                                                                setShippingProviders(shippingProviders.map(p => p.id === provider.id ? updated : p));
                                                                 
-                                                                if (!res.ok) {
-                                                                    throw new Error("Failed to update");
+                                                                try {
+                                                                    const res = await fetch("/api/admin/shipping-providers", {
+                                                                        method: "POST",
+                                                                        headers: { "Content-Type": "application/json" },
+                                                                        body: JSON.stringify(updated)
+                                                                    });
+                                                                    
+                                                                    if (!res.ok) throw new Error("Failed to update");
+                                                                    addToast(`${provider.name} ${updated.is_active ? 'enabled' : 'disabled'}`, "success");
+                                                                } catch (err) {
+                                                                    setShippingProviders(shippingProviders.map(p => p.id === provider.id ? { ...provider, is_active: previousState } : p));
+                                                                    addToast("Failed to update status", "error");
                                                                 }
-                                                                
-                                                                addToast(`${provider.name} ${updated.is_active ? 'enabled' : 'disabled'}`, "success");
-                                                            } catch (err) {
-                                                                setShippingProviders(shippingProviders.map(p => p.id === provider.id ? { ...provider, is_active: previousState } : p));
-                                                                addToast("Failed to update status", "error");
-                                                            }
-                                                        }}
-                                                        className={cn(
-                                                            "h-8 w-14 rounded-full flex items-center transition-all px-1",
-                                                            provider.is_active ? "bg-primary justify-end" : "bg-muted justify-start"
-                                                        )}
-                                                    >
-                                                        <div className="h-6 w-6 rounded-full bg-white shadow-sm" />
-                                                    </button>
+                                                            }}
+                                                            className={cn(
+                                                                "h-8 w-14 rounded-full flex items-center transition-all px-1",
+                                                                provider.is_active ? "bg-primary justify-end" : "bg-muted justify-start"
+                                                            )}
+                                                        >
+                                                            <div className="h-6 w-6 rounded-full bg-white shadow-sm" />
+                                                        </button>
+                                                    </div>
                                                 </div>
+
+                                                {/* Expanded Configuration */}
+                                                {isExpanded && (
+                                                    <div className="p-8 space-y-8 bg-muted/5 border-t-2">
+                                                        {/* Authentication Section */}
+                                                        <div className="space-y-6">
+                                                            <div className="flex items-center gap-2 pb-4 border-b">
+                                                                <Shield className="h-5 w-5 text-primary" />
+                                                                <h4 className="font-bold text-lg">Authentication Credentials</h4>
+                                                            </div>
+                                                            
+                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                                <div className="space-y-2">
+                                                                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">API Key *</label>
+                                                                    <input
+                                                                        type="password"
+                                                                        value={config.api_key || ''}
+                                                                        onChange={(e) => updateProviderConfig(provider.id, 'api_key', e.target.value)}
+                                                                        placeholder="Enter your API key..."
+                                                                        className="w-full h-11 rounded-xl border bg-white px-4 text-sm font-mono focus:ring-2 focus:ring-primary/20 outline-none"
+                                                                    />
+                                                                </div>
+                                                                <div className="space-y-2">
+                                                                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">API Secret *</label>
+                                                                    <input
+                                                                        type="password"
+                                                                        value={config.api_secret || ''}
+                                                                        onChange={(e) => updateProviderConfig(provider.id, 'api_secret', e.target.value)}
+                                                                        placeholder="Enter your API secret..."
+                                                                        className="w-full h-11 rounded-xl border bg-white px-4 text-sm font-mono focus:ring-2 focus:ring-primary/20 outline-none"
+                                                                    />
+                                                                </div>
+                                                                <div className="space-y-2">
+                                                                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Account Number *</label>
+                                                                    <input
+                                                                        type="text"
+                                                                        value={config.account_number || ''}
+                                                                        onChange={(e) => updateProviderConfig(provider.id, 'account_number', e.target.value)}
+                                                                        placeholder="Enter your account number..."
+                                                                        className="w-full h-11 rounded-xl border bg-white px-4 text-sm font-mono focus:ring-2 focus:ring-primary/20 outline-none"
+                                                                    />
+                                                                </div>
+                                                                <div className="space-y-2">
+                                                                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Environment</label>
+                                                                    <div className="flex gap-4 h-11">
+                                                                        <button
+                                                                            onClick={() => updateProviderConfig(provider.id, 'test_mode', true)}
+                                                                            className={cn(
+                                                                                "flex-1 rounded-xl border-2 font-bold text-sm transition-all",
+                                                                                config.test_mode ? "border-primary bg-primary/10 text-primary" : "border-muted bg-white text-muted-foreground hover:border-primary/30"
+                                                                            )}
+                                                                        >
+                                                                            Test Mode
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={() => updateProviderConfig(provider.id, 'test_mode', false)}
+                                                                            className={cn(
+                                                                                "flex-1 rounded-xl border-2 font-bold text-sm transition-all",
+                                                                                !config.test_mode ? "border-primary bg-primary/10 text-primary" : "border-muted bg-white text-muted-foreground hover:border-primary/30"
+                                                                            )}
+                                                                        >
+                                                                            Production
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Shipper Information Section */}
+                                                        <div className="space-y-6">
+                                                            <div className="flex items-center gap-2 pb-4 border-b">
+                                                                <Store className="h-5 w-5 text-primary" />
+                                                                <h4 className="font-bold text-lg">Shipper Information (Your Warehouse)</h4>
+                                                            </div>
+                                                            
+                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                                <div className="space-y-2">
+                                                                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Company Name *</label>
+                                                                    <input
+                                                                        type="text"
+                                                                        value={shipper.company_name || ''}
+                                                                        onChange={(e) => updateProviderConfig(provider.id, 'shipper.company_name', e.target.value)}
+                                                                        placeholder="Your Company Name"
+                                                                        className="w-full h-11 rounded-xl border bg-white px-4 text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                                                                    />
+                                                                </div>
+                                                                <div className="space-y-2">
+                                                                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Contact Person *</label>
+                                                                    <input
+                                                                        type="text"
+                                                                        value={shipper.contact_name || ''}
+                                                                        onChange={(e) => updateProviderConfig(provider.id, 'shipper.contact_name', e.target.value)}
+                                                                        placeholder="John Doe"
+                                                                        className="w-full h-11 rounded-xl border bg-white px-4 text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                                                                    />
+                                                                </div>
+                                                                <div className="space-y-2">
+                                                                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Phone Number *</label>
+                                                                    <input
+                                                                        type="tel"
+                                                                        value={shipper.phone || ''}
+                                                                        onChange={(e) => updateProviderConfig(provider.id, 'shipper.phone', e.target.value)}
+                                                                        placeholder="+1 (555) 000-0000"
+                                                                        className="w-full h-11 rounded-xl border bg-white px-4 text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                                                                    />
+                                                                </div>
+                                                                <div className="space-y-2">
+                                                                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Email *</label>
+                                                                    <input
+                                                                        type="email"
+                                                                        value={shipper.email || ''}
+                                                                        onChange={(e) => updateProviderConfig(provider.id, 'shipper.email', e.target.value)}
+                                                                        placeholder="shipping@yourcompany.com"
+                                                                        className="w-full h-11 rounded-xl border bg-white px-4 text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                                                                    />
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                                <div className="space-y-2 md:col-span-2">
+                                                                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Street Address *</label>
+                                                                    <input
+                                                                        type="text"
+                                                                        value={address.street || ''}
+                                                                        onChange={(e) => updateProviderConfig(provider.id, 'shipper.address.street', e.target.value)}
+                                                                        placeholder="123 Warehouse Street"
+                                                                        className="w-full h-11 rounded-xl border bg-white px-4 text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                                                                    />
+                                                                </div>
+                                                                <div className="space-y-2">
+                                                                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">City *</label>
+                                                                    <input
+                                                                        type="text"
+                                                                        value={address.city || ''}
+                                                                        onChange={(e) => updateProviderConfig(provider.id, 'shipper.address.city', e.target.value)}
+                                                                        placeholder="New York"
+                                                                        className="w-full h-11 rounded-xl border bg-white px-4 text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                                                                    />
+                                                                </div>
+                                                                <div className="space-y-2">
+                                                                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">State/Province *</label>
+                                                                    <input
+                                                                        type="text"
+                                                                        value={address.state || ''}
+                                                                        onChange={(e) => updateProviderConfig(provider.id, 'shipper.address.state', e.target.value)}
+                                                                        placeholder="NY"
+                                                                        className="w-full h-11 rounded-xl border bg-white px-4 text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                                                                    />
+                                                                </div>
+                                                                <div className="space-y-2">
+                                                                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Postal Code *</label>
+                                                                    <input
+                                                                        type="text"
+                                                                        value={address.postal_code || ''}
+                                                                        onChange={(e) => updateProviderConfig(provider.id, 'shipper.address.postal_code', e.target.value)}
+                                                                        placeholder="10001"
+                                                                        className="w-full h-11 rounded-xl border bg-white px-4 text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                                                                    />
+                                                                </div>
+                                                                <div className="space-y-2">
+                                                                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Country Code *</label>
+                                                                    <select
+                                                                        value={address.country_code || ''}
+                                                                        onChange={(e) => updateProviderConfig(provider.id, 'shipper.address.country_code', e.target.value)}
+                                                                        className="w-full h-11 rounded-xl border bg-white px-4 text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                                                                    >
+                                                                        <option value="">Select Country</option>
+                                                                        <option value="US">United States (US)</option>
+                                                                        <option value="GB">United Kingdom (GB)</option>
+                                                                        <option value="CA">Canada (CA)</option>
+                                                                        <option value="AU">Australia (AU)</option>
+                                                                        <option value="DE">Germany (DE)</option>
+                                                                        <option value="FR">France (FR)</option>
+                                                                        <option value="IN">India (IN)</option>
+                                                                        <option value="CN">China (CN)</option>
+                                                                    </select>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Default Settings Section */}
+                                                        <div className="space-y-6">
+                                                            <div className="flex items-center gap-2 pb-4 border-b">
+                                                                <Settings className="h-5 w-5 text-primary" />
+                                                                <h4 className="font-bold text-lg">Default Settings</h4>
+                                                            </div>
+                                                            
+                                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                                                <div className="space-y-2">
+                                                                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Base Rate ({defaults.currency || 'INR'})</label>
+                                                                    <input
+                                                                        type="number"
+                                                                        step="0.01"
+                                                                        value={config.base_rate || 15}
+                                                                        onChange={(e) => updateProviderConfig(provider.id, 'base_rate', parseFloat(e.target.value))}
+                                                                        placeholder="15.00"
+                                                                        className="w-full h-11 rounded-xl border bg-white px-4 text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                                                                    />
+                                                                    <p className="text-[10px] text-muted-foreground">Fallback if services not configured</p>
+                                                                </div>
+                                                                <div className="space-y-2">
+                                                                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Weight Unit</label>
+                                                                    <select
+                                                                        value={defaults.weight_unit || 'kg'}
+                                                                        onChange={(e) => updateProviderConfig(provider.id, 'defaults.weight_unit', e.target.value)}
+                                                                        className="w-full h-11 rounded-xl border bg-white px-4 text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                                                                    >
+                                                                        <option value="kg">Kilograms (kg)</option>
+                                                                        <option value="lb">Pounds (lb)</option>
+                                                                    </select>
+                                                                </div>
+                                                                <div className="space-y-2">
+                                                                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Dimension Unit</label>
+                                                                    <select
+                                                                        value={defaults.dimension_unit || 'cm'}
+                                                                        onChange={(e) => updateProviderConfig(provider.id, 'defaults.dimension_unit', e.target.value)}
+                                                                        className="w-full h-11 rounded-xl border bg-white px-4 text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                                                                    >
+                                                                        <option value="cm">Centimeters (cm)</option>
+                                                                        <option value="in">Inches (in)</option>
+                                                                    </select>
+                                                                </div>
+                                                                <div className="space-y-2">
+                                                                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Currency</label>
+                                                                    <select
+                                                                        value={defaults.currency || 'INR'}
+                                                                        onChange={(e) => updateProviderConfig(provider.id, 'defaults.currency', e.target.value)}
+                                                                        className="w-full h-11 rounded-xl border bg-white px-4 text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                                                                    >
+                                                                        <option value="INR">INR</option>
+                                                                        <option value="USD">USD</option>
+                                                                        <option value="EUR">EUR</option>
+                                                                        <option value="GBP">GBP</option>
+                                                                        <option value="CAD">CAD</option>
+                                                                        <option value="AUD">AUD</option>
+                                                                    </select>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Service Rates Section */}
+                                                        <div className="space-y-6">
+                                                            <div className="flex items-center gap-2 pb-4 border-b">
+                                                                <Truck className="h-5 w-5 text-primary" />
+                                                                <h4 className="font-bold text-lg">Service Rates</h4>
+                                                            </div>
+                                                            
+                                                            <div className="space-y-4">
+                                                                {Object.entries(config.services || {}).map(([serviceKey, serviceConfig]: [string, any]) => (
+                                                                    <div key={serviceKey} className="p-6 border-2 rounded-2xl bg-white space-y-4">
+                                                                        <div className="flex items-center justify-between">
+                                                                            <div className="flex items-center gap-3">
+                                                                                <input
+                                                                                    type="checkbox"
+                                                                                    checked={serviceConfig.enabled !== false}
+                                                                                    onChange={(e) => updateProviderConfig(provider.id, `services.${serviceKey}.enabled`, e.target.checked)}
+                                                                                    className="h-5 w-5 rounded border-muted text-primary focus:ring-primary"
+                                                                                />
+                                                                                <div>
+                                                                                    <h5 className="font-bold text-sm">{serviceConfig.name || serviceKey}</h5>
+                                                                                    <p className="text-[10px] text-muted-foreground">{serviceConfig.description || ''}</p>
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                        
+                                                                        <div className="grid grid-cols-3 gap-4">
+                                                                            <div className="space-y-1">
+                                                                                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Rate ({defaults.currency || 'INR'})</label>
+                                                                                <input
+                                                                                    type="number"
+                                                                                    step="0.01"
+                                                                                    value={serviceConfig.rate || 0}
+                                                                                    onChange={(e) => updateProviderConfig(provider.id, `services.${serviceKey}.rate`, parseFloat(e.target.value))}
+                                                                                    className="w-full h-10 rounded-lg border bg-muted/20 px-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                                                                                />
+                                                                            </div>
+                                                                            <div className="space-y-1">
+                                                                                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Delivery Time</label>
+                                                                                <input
+                                                                                    type="text"
+                                                                                    value={serviceConfig.estimated_days || ''}
+                                                                                    onChange={(e) => updateProviderConfig(provider.id, `services.${serviceKey}.estimated_days`, e.target.value)}
+                                                                                    placeholder="2-3"
+                                                                                    className="w-full h-10 rounded-lg border bg-muted/20 px-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                                                                                />
+                                                                            </div>
+                                                                            <div className="space-y-1">
+                                                                                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Service Name</label>
+                                                                                <input
+                                                                                    type="text"
+                                                                                    value={serviceConfig.name || ''}
+                                                                                    onChange={(e) => updateProviderConfig(provider.id, `services.${serviceKey}.name`, e.target.value)}
+                                                                                    className="w-full h-10 rounded-lg border bg-muted/20 px-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                                                                                />
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                ))}
+                                                                
+                                                                {Object.keys(config.services || {}).length === 0 && (
+                                                                    <div className="p-8 border-2 border-dashed rounded-2xl text-center text-muted-foreground">
+                                                                        <p className="text-sm font-medium">No services configured. Using base rate fallback.</p>
+                                                                        <p className="text-xs mt-1">Run the service rates migration to add default services.</p>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Action Buttons */}
+                                                        <div className="flex items-center justify-between pt-6 border-t">
+                                                            <p className="text-xs text-muted-foreground flex items-center gap-2">
+                                                                <ExternalLink className="h-3 w-3" />
+                                                                Get API credentials from {provider.name} developer portal
+                                                            </p>
+                                                            <button 
+                                                                onClick={() => handleSaveShippingProvider(provider.id)}
+                                                                disabled={savingProvider === provider.id}
+                                                                className="h-11 px-8 rounded-xl bg-primary text-white text-sm font-bold hover:bg-primary/90 transition-all disabled:opacity-50 flex items-center gap-2"
+                                                            >
+                                                                {savingProvider === provider.id ? (
+                                                                    <><Loader2 className="h-4 w-4 animate-spin" /> Saving...</>
+                                                                ) : (
+                                                                    <><Save className="h-4 w-4" /> Save Configuration</>
+                                                                )}
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                     {shippingProviders.length === 0 && (
                                         <div className="col-span-2 py-20 bg-muted/20 rounded-3xl border-2 border-dashed flex flex-col items-center justify-center text-center">
                                             <Truck className="h-12 w-12 text-muted-foreground/30 mb-4" />
                                             <p className="text-muted-foreground font-bold italic">No shipping providers configured in database.</p>
                                         </div>
                                     )}
+                                </div>
+
+                                <div className="bg-blue-50 border border-blue-200 rounded-2xl p-6 mt-8">
+                                    <div className="flex gap-4">
+                                        <div className="shrink-0">
+                                            <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
+                                                <FileText className="h-5 w-5 text-blue-600" />
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <h4 className="font-bold text-sm text-blue-900">How Shipping Integration Works</h4>
+                                            <ul className="text-xs text-blue-800 space-y-1 leading-relaxed">
+                                                <li>• Configure API credentials for your preferred shipping carriers above</li>
+                                                <li>• The system will automatically calculate real-time shipping rates at checkout</li>
+                                                <li>• After orders are placed, generate shipping labels from the Orders page</li>
+                                                <li>• Tracking numbers are automatically sent to customers via email</li>
+                                                <li>• All credentials are stored securely and encrypted in the database</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 mt-4">
+                                    <div className="flex gap-4">
+                                        <div className="shrink-0">
+                                            <div className="h-10 w-10 rounded-full bg-amber-100 flex items-center justify-center">
+                                                <Settings className="h-5 w-5 text-amber-600" />
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <h4 className="font-bold text-sm text-amber-900">Current Status: Mock Rates</h4>
+                                            <p className="text-xs text-amber-800 leading-relaxed">
+                                                Currently using mock/estimated rates based on the <strong>Base Rate</strong> you configure. 
+                                                Once you integrate the actual DHL API, real-time rates will be calculated based on package weight, 
+                                                dimensions, and destination. The Base Rate is used as a multiplier for different service levels 
+                                                (Express = 1x, Economy = 0.7x).
+                                            </p>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
@@ -1128,38 +1538,6 @@ export default function AdminSettingsPage() {
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-bold text-muted-foreground uppercase tracking-wider ml-1">Free Shipping Threshold ($)</label>
-                                        <input
-                                            type="number"
-                                            step="0.01"
-                                            value={settings.shipping_config?.free_shipping_threshold || 0}
-                                            onChange={(e) => setSettings({
-                                                ...settings,
-                                                shipping_config: { ...settings.shipping_config, free_shipping_threshold: parseFloat(e.target.value) || 0 }
-                                            })}
-                                            className="w-full h-14 rounded-xl border bg-muted/30 px-4 focus:outline-none focus:ring-2 focus:ring-primary/20"
-                                            placeholder="0.00"
-                                        />
-                                        <p className="text-[10px] text-muted-foreground ml-1">Orders above this amount get free shipping (0 = disabled)</p>
-                                    </div>
-
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-bold text-muted-foreground uppercase tracking-wider ml-1">Default Flat Rate ($)</label>
-                                        <input
-                                            type="number"
-                                            step="0.01"
-                                            value={settings.shipping_config?.default_rate || 10}
-                                            onChange={(e) => setSettings({
-                                                ...settings,
-                                                shipping_config: { ...settings.shipping_config, default_rate: parseFloat(e.target.value) || 10 }
-                                            })}
-                                            className="w-full h-14 rounded-xl border bg-muted/30 px-4 focus:outline-none focus:ring-2 focus:ring-primary/20"
-                                            placeholder="10.00"
-                                        />
-                                        <p className="text-[10px] text-muted-foreground ml-1">Fallback rate when carriers are unavailable</p>
-                                    </div>
-
                                     <div className="space-y-2">
                                         <label className="text-sm font-bold text-muted-foreground uppercase tracking-wider ml-1">Weight Unit</label>
                                         <select
@@ -1194,128 +1572,7 @@ export default function AdminSettingsPage() {
                         </div>
                     )}
 
-                    {activeSection === "Shipping" && (
-                        <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                            <div className="bg-white border rounded-3xl p-10 shadow-sm space-y-8">
-                                <div className="flex items-center space-x-3">
-                                    <Truck className="h-6 w-6 text-primary" />
-                                    <h2 className="text-2xl font-bold font-lufga">Shipping Providers</h2>
-                                </div>
-                                <p className="text-sm text-muted-foreground">Configure shipping carriers and their API credentials for automated label generation and tracking.</p>
 
-                                <div className="space-y-4">
-                                    {[
-                                        { name: 'DHL Express', slug: 'dhl', logo: '/fonts/assets/dhl-logo.svg', description: 'Global express shipping' },
-                                        { name: 'FedEx', slug: 'fedex', logo: '/fonts/assets/fedex-logo.svg', description: 'Reliable worldwide delivery' },
-                                        { name: 'UPS', slug: 'ups', logo: '/fonts/assets/ups-logo.svg', description: 'United Parcel Service' },
-                                    ].map((provider) => (
-                                        <div key={provider.slug} className="p-6 rounded-2xl border transition-all bg-white hover:shadow-md">
-                                            <div className="flex items-start justify-between gap-6">
-                                                <div className="flex items-center space-x-6 flex-1">
-                                                    <div className="h-16 w-32 flex items-center justify-center p-3 bg-muted/5 rounded-xl border border-muted-foreground/5">
-                                                        <img 
-                                                            src={provider.logo}
-                                                            alt={provider.name}
-                                                            className="w-full h-full object-contain"
-                                                            onError={(e) => {
-                                                                (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="40"><text x="50%" y="50%" text-anchor="middle" dy=".3em" font-family="Arial" font-size="12" fill="%23666">' + provider.name + '</text></svg>';
-                                                            }}
-                                                        />
-                                                    </div>
-                                                    <div className="flex-1">
-                                                        <h3 className="text-lg font-bold font-lufga">{provider.name}</h3>
-                                                        <p className="text-xs text-muted-foreground mt-1">{provider.description}</p>
-                                                        <button 
-                                                            onClick={() => {
-                                                                const section = document.getElementById(`config-${provider.slug}`);
-                                                                if (section) {
-                                                                    section.classList.toggle('hidden');
-                                                                }
-                                                            }}
-                                                            className="text-xs text-primary font-bold mt-2 hover:underline"
-                                                        >
-                                                            Configure API Credentials →
-                                                        </button>
-                                                    </div>
-                                                </div>
-
-                                                <div className="flex items-center space-x-4">
-                                                    <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                                                        Coming Soon
-                                                    </span>
-                                                    <button
-                                                        disabled
-                                                        className="h-8 w-14 rounded-full flex items-center transition-all px-1 bg-muted justify-start opacity-50 cursor-not-allowed"
-                                                    >
-                                                        <div className="h-6 w-6 rounded-full bg-white shadow-sm" />
-                                                    </button>
-                                                </div>
-                                            </div>
-
-                                            {/* Collapsible Configuration */}
-                                            <div id={`config-${provider.slug}`} className="hidden mt-6 pt-6 border-t space-y-4">
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                    <div className="space-y-2">
-                                                        <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">API Key / Client ID</label>
-                                                        <input
-                                                            type="password"
-                                                            placeholder="Enter API key..."
-                                                            className="w-full h-10 rounded-xl border bg-muted/20 px-4 text-sm font-mono focus:ring-2 focus:ring-primary/20 outline-none"
-                                                        />
-                                                    </div>
-                                                    <div className="space-y-2">
-                                                        <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">API Secret / Account Number</label>
-                                                        <input
-                                                            type="password"
-                                                            placeholder="Enter secret..."
-                                                            className="w-full h-10 rounded-xl border bg-muted/20 px-4 text-sm font-mono focus:ring-2 focus:ring-primary/20 outline-none"
-                                                        />
-                                                    </div>
-                                                </div>
-                                                <div className="space-y-2">
-                                                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Shipper Address (Your Warehouse)</label>
-                                                    <textarea
-                                                        rows={3}
-                                                        placeholder="123 Warehouse St, City, State, ZIP, Country"
-                                                        className="w-full rounded-xl border bg-muted/20 px-4 py-3 text-sm focus:ring-2 focus:ring-primary/20 outline-none"
-                                                    />
-                                                </div>
-                                                <div className="flex items-center justify-between pt-2">
-                                                    <p className="text-xs text-muted-foreground">
-                                                        <ExternalLink className="h-3 w-3 inline mr-1" />
-                                                        Get API credentials from {provider.name} developer portal
-                                                    </p>
-                                                    <button className="h-9 px-6 rounded-xl bg-primary/10 text-primary text-xs font-bold hover:bg-primary/20 transition-all">
-                                                        Save Credentials
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-
-                                <div className="bg-blue-50 border border-blue-200 rounded-2xl p-6 mt-8">
-                                    <div className="flex gap-4">
-                                        <div className="shrink-0">
-                                            <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
-                                                <FileText className="h-5 w-5 text-blue-600" />
-                                            </div>
-                                        </div>
-                                        <div className="space-y-2">
-                                            <h4 className="font-bold text-sm text-blue-900">How Shipping Integration Works</h4>
-                                            <ul className="text-xs text-blue-800 space-y-1 leading-relaxed">
-                                                <li>• Configure API credentials for your preferred shipping carriers</li>
-                                                <li>• When orders are placed, generate shipping labels automatically via API</li>
-                                                <li>• Print labels and attach to packages</li>
-                                                <li>• Schedule pickups or drop off at carrier locations</li>
-                                                <li>• Track shipments in real-time and update customers automatically</li>
-                                            </ul>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    )}
 
                     {activeSection !== "Store Info" && activeSection !== "Navigation" && activeSection !== "Footer" && activeSection !== "Marquee" && activeSection !== "Payments" && activeSection !== "Shipping" && (
                         <div className="bg-white border border-dashed rounded-3xl p-20 flex flex-col items-center justify-center text-center space-y-4">
