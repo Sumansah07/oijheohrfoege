@@ -6,7 +6,7 @@ import { Search, ShoppingBag, User, Heart, Menu, X, ChevronDown, LogOut, LayoutD
 import { useCart } from "@/store/use-cart";
 import { cn } from "@/lib/utils"
 import { createClient } from "@/lib/supabase/client";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useWishlist } from "@/store/use-wishlist";
 import { proxyImageUrl } from "@/lib/image-proxy";
 import { getWishlistIds } from "@/app/actions/wishlist-actions";
@@ -45,8 +45,15 @@ export function Navbar({ initialSettings, initialLinks }: NavbarProps = {}) {
     const { addToast } = useToast();
     const supabase = createClient();
     const router = useRouter();
+    const pathname = usePathname();
 
     const cartCount = totalItems();
+
+    // Close profile dropdown and mobile menu when route changes
+    React.useEffect(() => {
+        setIsProfileOpen(false);
+        setIsMenuOpen(false);
+    }, [pathname]);
 
     // Build navigation tree from flat array
     const buildNavTree = React.useCallback((data: NavLink[]) => {
